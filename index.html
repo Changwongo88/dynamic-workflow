@@ -2073,29 +2073,8 @@
             // 월 선택기 초기화
             document.getElementById('monthSelector').value = currentMonth;
             
-            fetch('슈퍼캣 조직도.csv')
-                .then(response => response.text())
-                .then(csvText => {
-                    const csvData = parseCSV(csvText);
-                    orgData = extractOrgStructure(csvData);
-                    renderOrganization(orgData);
-                    generateLeaderboardData();
-                    generateWeekButtons();
-                    
-                    // 현재 주차 버튼 활성화
-                    const btns = document.querySelectorAll('.week-btn');
-                    btns.forEach((btn, idx) => {
-                        if (idx + 1 === currentWeek) {
-                            btn.classList.add('active');
-                        }
-                    });
-                    
-                    updateLeaderboard();
-                    startSimulation();
-                })
-                .catch(error => {
-                    console.log('CSV 파일을 찾을 수 없습니다. 기본 데이터를 사용합니다.');
-                    const defaultCSV = `조직 레벨,조직명,조직리더,직속 조직,직속조직2,직속조직3,직속조직4,직속조직5,직속조직6,직속조직7,조직원1,조직원2,조직원3,조직원4,조직원5,조직원6,조직원7,조직원8,조직원9,조직원10,조직원11
+            // 내장 데이터 사용
+            const defaultCSV = `조직 레벨,조직명,조직리더,직속 조직,직속조직2,직속조직3,직속조직4,직속조직5,직속조직6,직속조직7,조직원1,조직원2,조직원3,조직원4,조직원5,조직원6,조직원7,조직원8,조직원9,조직원10,조직원11
 1,PD조직,박성준,퀄리티 디렉터 조직,게임 디렉터 조직,,,,,,,,,,,,,,,,
 2,게임 디렉터 조직,장수민,기획팀,프로그램팀,아트팀,,,,,,,,,,,,,,,
 3,기획팀,김도연,밸런스파트,콘텐츠파트,시스템파트,게임UI파트,,,,,,,,,,,,,,
@@ -2212,24 +2191,23 @@
 (아트)",,,,,,,,
 5,TA파트,최상훈,,,,,,,,"황태준
 (아트)",,,,,,,,,,`;
-                    
-                    const csvData = parseCSV(defaultCSV);
-                    orgData = extractOrgStructure(csvData);
-                    renderOrganization(orgData);
-                    generateLeaderboardData();
-                    generateWeekButtons();
-                    
-                    // 현재 주차 버튼 활성화
-                    const btns = document.querySelectorAll('.week-btn');
-                    btns.forEach((btn, idx) => {
-                        if (idx + 1 === currentWeek) {
-                            btn.classList.add('active');
-                        }
-                    });
-                    
-                    updateLeaderboard();
-                    startSimulation();
-                });
+            
+            const csvData = parseCSV(defaultCSV);
+            orgData = extractOrgStructure(csvData);
+            renderOrganization(orgData);
+            generateLeaderboardData();
+            generateWeekButtons();
+            
+            // 현재 주차 버튼 활성화
+            const btns = document.querySelectorAll('.week-btn');
+            btns.forEach((btn, idx) => {
+                if (idx + 1 === currentWeek) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            updateLeaderboard();
+            startSimulation();
         });
     </script>
 </body>
