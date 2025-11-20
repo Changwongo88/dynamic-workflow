@@ -1,0 +1,2236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>호랑 스튜디오 Dynamic Workflow</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+            overflow: hidden;
+            color: white;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 3px;
+        }
+
+        .header p {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .controls {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px 30px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            position: fixed;
+            top: 80px;
+            left: 0;
+            right: 0;
+            z-index: 999;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stats {
+            display: flex;
+            gap: 25px;
+            align-items: center;
+            flex: 1;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .stat-value.active {
+            color: #00ff88;
+            animation: pulse 2s infinite;
+        }
+
+        .stat-value.dormant {
+            color: #ff4444;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        button {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        #viewport {
+            position: fixed;
+            top: 135px;
+            left: 0;
+            right: 400px;
+            bottom: 70px;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        #viewport.grabbing {
+            cursor: grabbing;
+        }
+
+        #canvas {
+            position: absolute;
+            transform-origin: 0 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        svg#connections {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #orgContainer {
+            position: relative;
+            padding: 50px;
+            display: flex;
+            gap: 3px;
+            min-height: 100%;
+        }
+
+        /* 컬럼 (직속 조직 라인) */
+        .org-column {
+            flex: 1;
+            min-width: 350px;
+            background: rgba(255, 255, 255, 0.02);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            position: relative;
+        }
+        
+        .org-column.wide {
+            flex: 2;
+            min-width: 700px;
+        }
+
+        .org-column:nth-child(1) { background: rgba(231, 76, 60, 0.03); }
+        .org-column:nth-child(2) { background: rgba(52, 152, 219, 0.03); }
+        .org-column:nth-child(3) { background: rgba(46, 204, 113, 0.03); }
+        .org-column:nth-child(4) { background: rgba(155, 89, 182, 0.03); }
+        .org-column:nth-child(5) { background: rgba(241, 196, 15, 0.03); }
+
+        .column-label {
+            position: sticky;
+            top: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            padding: 12px 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 10px;
+            z-index: 10;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .org-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .org-card.wide {
+            min-width: 100%;
+        }
+
+
+        .org-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .org-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 900;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .org-info h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .org-info p {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .leader-section {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        .leader-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .members {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .member {
+            position: relative;
+            padding: 8px 14px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            min-width: 65px;
+            white-space: nowrap;
+        }
+
+        .member::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .member.active {
+            animation: memberGlow 2s infinite;
+            box-shadow: 0 0 20px currentColor;
+        }
+
+        .member.active::before {
+            opacity: 1;
+            animation: ripple 2s infinite;
+            background: currentColor;
+        }
+
+        @keyframes memberGlow {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes ripple {
+            0% {
+                opacity: 0.6;
+                transform: scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(1.4);
+            }
+        }
+
+        .member.dormant {
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%) !important;
+            animation: warning 1s infinite;
+            border-color: #ff0000;
+        }
+
+        @keyframes warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .member:hover {
+            transform: scale(1.15);
+            z-index: 10;
+        }
+
+        .member-tooltip {
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+
+        .member:hover .member-tooltip {
+            opacity: 1;
+        }
+
+        /* 색상 정의 */
+        .level-0 .org-icon { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+        .level-1 .org-icon { background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); }
+        .level-2 .org-icon { background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); }
+        .level-3 .org-icon { background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); }
+        .level-4 .org-icon { background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%); }
+
+        .member.level-0 { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; }
+        .member.level-1 { background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; }
+        .member.level-2 { background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; }
+        .member.level-3 { background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; }
+        .member.level-4 { background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%); color: white; }
+        .member.level-5 { background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%); color: white; }
+
+        .connection-line {
+            stroke-width: 2;
+            fill: none;
+            stroke: rgba(150, 180, 255, 0.5);
+            stroke-dasharray: 3, 3;
+        }
+
+        .connection-line.active {
+            stroke: #00ff88;
+            stroke-width: 3;
+            opacity: 1;
+            animation: flowLine 2s infinite;
+            filter: drop-shadow(0 0 5px #00ff88);
+            stroke-dasharray: 10, 5;
+        }
+
+        @keyframes flowLine {
+            0% { stroke-dashoffset: 20; }
+            100% { stroke-dashoffset: 0; }
+        }
+
+        .zoom-controls {
+            position: fixed;
+            bottom: 90px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .zoom-btn {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            font-size: 22px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            transition: all 0.3s;
+        }
+
+        .zoom-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .legend {
+            position: fixed;
+            top: 150px;
+            right: 430px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            max-width: 200px;
+            z-index: 1000;
+            font-size: 11px;
+        }
+
+        .legend-title {
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #00ff88;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 10px;
+        }
+
+        .legend-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .activity-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 400px;
+            height: 70px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            padding: 0 30px;
+            gap: 25px;
+            border-top: 2px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+        }
+        
+        /* 리더보드 스타일 */
+        .leaderboard-panel {
+            position: fixed;
+            top: 80px;
+            right: 0;
+            width: 400px;
+            height: calc(100vh - 80px);
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(15px);
+            border-left: 2px solid rgba(255, 255, 255, 0.1);
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .leaderboard-header {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .leaderboard-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .leaderboard-subtitle {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 15px;
+        }
+        
+        .leaderboard-dropdown {
+            width: 100%;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        
+        .leaderboard-dropdown:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        .leaderboard-dropdown option {
+            background: #1a1a2e;
+            color: white;
+        }
+        
+        .week-selector {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            justify-content: space-between;
+        }
+        
+        .week-btn {
+            flex: 1;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .week-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .week-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            font-weight: 700;
+        }
+        
+        .week-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .week-btn.current-week {
+            border: 2px solid #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+        
+        .month-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .month-dropdown {
+            flex: 1;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+        }
+        
+        .month-dropdown option {
+            background: #1a1a2e;
+            color: white;
+        }
+        
+        .empty-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .empty-message-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+        
+        .leaderboard-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .leaderboard-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .leaderboard-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .leaderboard-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        
+        .rank-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .rank-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(-5px);
+        }
+        
+        .rank-number {
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 16px;
+            border-radius: 8px;
+            margin-right: 12px;
+        }
+        
+        .rank-item.rank-1 .rank-number {
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            color: #000;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+        
+        .rank-item.rank-2 .rank-number {
+            background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
+            color: #000;
+            box-shadow: 0 0 15px rgba(192, 192, 192, 0.5);
+        }
+        
+        .rank-item.rank-3 .rank-number {
+            background: linear-gradient(135deg, #cd7f32 0%, #e39d5e 100%);
+            color: #000;
+            box-shadow: 0 0 15px rgba(205, 127, 50, 0.5);
+        }
+        
+        .rank-item:not(.rank-1):not(.rank-2):not(.rank-3) .rank-number {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .rank-info {
+            flex: 1;
+        }
+        
+        .rank-name {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .rank-org {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .rank-score {
+            text-align: right;
+            font-size: 18px;
+            font-weight: 900;
+            color: #667eea;
+        }
+        
+        .rank-change {
+            margin-left: 8px;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        .rank-change.up {
+            color: #00ff88;
+        }
+        
+        .rank-change.down {
+            color: #ff4444;
+        }
+        
+        .rank-change.same {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .activity-item {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .activity-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            min-width: 70px;
+        }
+
+        .activity-progress {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .activity-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .activity-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .activity-value {
+            font-size: 13px;
+            font-weight: 700;
+            min-width: 35px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚇 호랑 스튜디오 Dynamic Workflow</h1>
+        <p>실시간 업무 흐름 & 조직 활동 모니터링 - 직속 조직별 구획 뷰</p>
+    </div>
+
+    <div class="controls">
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-label">활동 중:</span>
+                <span class="stat-value active" id="activeCount">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">비활성:</span>
+                <span class="stat-value dormant" id="dormantCount">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">협업:</span>
+                <span class="stat-value" id="collabCount" style="color: #00ff88;">0</span>
+            </div>
+        </div>
+        <button onclick="toggleSimulation()">
+            <span id="simBtn">⏸ 일시정지</span>
+        </button>
+        <button onclick="resetSimulation()">🔄 리셋</button>
+        <input type="file" id="csvFile" accept=".csv" style="display: none;" onchange="loadCSV(event)">
+        <button onclick="document.getElementById('csvFile').click()">📁 CSV</button>
+    </div>
+
+    <div id="viewport">
+        <div id="canvas">
+            <svg id="connections"></svg>
+            <div id="orgContainer"></div>
+        </div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-title">상태 범례</div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); box-shadow: 0 0 10px #00ff88;"></div>
+            <span>활동 중</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);"></div>
+            <span>일반</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%); animation: warning 1s infinite;"></div>
+            <span>비활성</span>
+        </div>
+    </div>
+
+    <div class="zoom-controls">
+        <button class="zoom-btn" onclick="zoomIn()">+</button>
+        <button class="zoom-btn" onclick="zoomOut()">−</button>
+        <button class="zoom-btn" onclick="resetView()" style="font-size: 18px;">⌂</button>
+    </div>
+
+    <!-- 리더보드 패널 -->
+    <div class="leaderboard-panel">
+        <div class="leaderboard-header">
+            <div class="leaderboard-title">🏆 리더보드</div>
+            <div class="leaderboard-subtitle" id="leaderboardSubtitle">11월 4주차</div>
+            <div class="month-selector">
+                <select class="month-dropdown" id="monthSelector" onchange="changeMonth()">
+                    <option value="1">1월</option>
+                    <option value="2">2월</option>
+                    <option value="3">3월</option>
+                    <option value="4">4월</option>
+                    <option value="5">5월</option>
+                    <option value="6">6월</option>
+                    <option value="7">7월</option>
+                    <option value="8">8월</option>
+                    <option value="9">9월</option>
+                    <option value="10">10월</option>
+                    <option value="11" selected>11월</option>
+                    <option value="12">12월</option>
+                </select>
+            </div>
+            <select class="leaderboard-dropdown" id="leaderboardCategory" onchange="updateLeaderboard()">
+                <option value="collaboration">협업이 가장 활발한 사람</option>
+                <option value="quality">협업의 능력이 좋은 사람</option>
+                <option value="overtime">야근을 가장 많이 하는 사람</option>
+                <option value="deadline">기한을 가장 잘 엄수하는 사람</option>
+                <option value="suggestion">건설적인 제안을 가장 활발하게 하는 사람</option>
+                <option value="overall" selected>종합 순위</option>
+            </select>
+            <div class="week-selector" id="weekSelector">
+                <!-- 주차 버튼들이 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
+        <div class="leaderboard-content" id="leaderboardContent">
+            <!-- 리더보드 항목들이 여기에 동적으로 추가됩니다 -->
+        </div>
+    </div>
+
+    <div class="activity-bar">
+        <div class="activity-item">
+            <span class="activity-label">기획팀</span>
+            <div class="activity-progress">
+                <div class="activity-fill" id="activity-planning" style="background: linear-gradient(90deg, #2ecc71 0%, #27ae60 100%); width: 0%;"></div>
+            </div>
+            <span class="activity-value" id="value-planning">0%</span>
+        </div>
+        <div class="activity-item">
+            <span class="activity-label">프로그램팀</span>
+            <div class="activity-progress">
+                <div class="activity-fill" id="activity-program" style="background: linear-gradient(90deg, #3498db 0%, #2980b9 100%); width: 0%;"></div>
+            </div>
+            <span class="activity-value" id="value-program">0%</span>
+        </div>
+        <div class="activity-item">
+            <span class="activity-label">아트팀</span>
+            <div class="activity-progress">
+                <div class="activity-fill" id="activity-art" style="background: linear-gradient(90deg, #9b59b6 0%, #8e44ad 100%); width: 0%;"></div>
+            </div>
+            <span class="activity-value" id="value-art">0%</span>
+        </div>
+    </div>
+
+    <script>
+        let orgData = [];
+        let currentOrgData = { organizations: [] };
+        let orgMap = new Map();
+        let memberElements = new Map();
+        let orgElements = new Map();
+        let simulationRunning = true;
+        let activeMembers = new Set();
+        let dormantMembers = new Set();
+        let collaborations = [];
+        
+        let scale = 1;
+        let translateX = 0;
+        let translateY = 0;
+        let isPanning = false;
+        let startX = 0;
+        let startY = 0;
+
+        // CSV 파싱
+        function parseCSV(csvText) {
+            const data = [];
+            const lines = [];
+            let currentLine = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < csvText.length; i++) {
+                const char = csvText[i];
+                
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                    currentLine += char;
+                } else if (char === '\n' && !inQuotes) {
+                    if (currentLine.trim()) {
+                        lines.push(currentLine);
+                    }
+                    currentLine = '';
+                } else {
+                    currentLine += char;
+                }
+            }
+            if (currentLine.trim()) {
+                lines.push(currentLine);
+            }
+            
+            for (let line of lines) {
+                const cells = [];
+                let currentCell = '';
+                let inQuotes = false;
+                
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        cells.push(currentCell.trim());
+                        currentCell = '';
+                    } else {
+                        currentCell += char;
+                    }
+                }
+                cells.push(currentCell.trim());
+                data.push(cells);
+            }
+            
+            return data;
+        }
+
+        // 이름 정규화 함수 (공백 제거, 괄호 안 텍스트 제거)
+        function normalizeName(text) {
+            if (!text) return '';
+            const cleaned = text.replace(/\n/g, ' ').replace(/"/g, '').trim();
+            const nameMatch = cleaned.match(/^(.+?)\s*\(([^)]+)\)$/);
+            return nameMatch ? nameMatch[1].trim() : cleaned;
+        }
+        
+        // 조직 구조 추출
+        function extractOrgStructure(csvData) {
+            const organizations = [];
+            
+            for (let i = 1; i < csvData.length; i++) {
+                const row = csvData[i];
+                if (!row[0] || row[0] === '') continue;
+                
+                const leaderRaw = row[2] ? row[2].replace(/\n/g, ' ').replace(/"/g, '').trim() : '';
+                const leaderName = normalizeName(leaderRaw);
+                
+                const org = {
+                    level: parseInt(row[0]),
+                    name: row[1],
+                    leader: leaderName,
+                    leaderRaw: leaderRaw,
+                    subOrgs: [],
+                    members: []
+                };
+                
+                for (let j = 3; j <= 9; j++) {
+                    if (row[j] && row[j].trim()) {
+                        org.subOrgs.push(row[j].trim());
+                    }
+                }
+                
+                for (let j = 10; j < row.length; j++) {
+                    const cellValue = row[j];
+                    if (cellValue && cellValue.trim() && cellValue.trim() !== '""') {
+                        const memberRaw = cellValue.replace(/\n/g, ' ').replace(/"/g, '').trim();
+                        if (memberRaw) {
+                            const nameMatch = memberRaw.match(/^(.+?)\s*\(([^)]+)\)$/);
+                            const memberName = nameMatch ? nameMatch[1].trim() : memberRaw;
+                            org.members.push({
+                                name: memberName,
+                                role: nameMatch ? nameMatch[2].trim() : '',
+                                fullText: memberRaw
+                            });
+                        }
+                    }
+                }
+                
+                organizations.push(org);
+                orgMap.set(org.name, org);
+            }
+            
+            return organizations;
+        }
+
+        // 직속 조직 트리 빌드
+        function buildOrgTree(organizations) {
+            const lines = [];
+            
+            // 퀄리티 디렉터 라인
+            const qualityLine = {
+                name: '퀄리티 디렉터 조직 라인',
+                orgs: [],
+                subColumns: []
+            };
+            const qualityOrg = organizations.find(o => o.name === '퀄리티 디렉터 조직');
+            if (qualityOrg) {
+                qualityLine.orgs.push(qualityOrg);
+                qualityOrg.subOrgs.forEach(subName => {
+                    const sub = organizations.find(o => o.name === subName);
+                    if (sub) qualityLine.orgs.push(sub);
+                });
+            }
+            if (qualityLine.orgs.length > 0) lines.push(qualityLine);
+            
+            // 기획팀 라인
+            const planningLine = {
+                name: '기획팀 라인',
+                orgs: [],
+                subColumns: []
+            };
+            const planningTeam = organizations.find(o => o.name === '기획팀');
+            if (planningTeam) {
+                planningLine.orgs.push(planningTeam);
+                planningTeam.subOrgs.forEach(subName => {
+                    const sub = organizations.find(o => o.name === subName);
+                    if (sub) planningLine.orgs.push(sub);
+                });
+            }
+            if (planningLine.orgs.length > 0) lines.push(planningLine);
+            
+            // 프로그램팀 라인
+            const programLine = {
+                name: '프로그램팀 라인',
+                orgs: [],
+                subColumns: []
+            };
+            const programTeam = organizations.find(o => o.name === '프로그램팀');
+            if (programTeam) {
+                programLine.orgs.push(programTeam);
+                programTeam.subOrgs.forEach(subName => {
+                    const sub = organizations.find(o => o.name === subName);
+                    if (sub) programLine.orgs.push(sub);
+                });
+            }
+            if (programLine.orgs.length > 0) lines.push(programLine);
+            
+            // 아트팀 라인 (2D와 3D를 서브컬럼으로)
+            const artLine = {
+                name: '아트팀 라인',
+                orgs: [],
+                subColumns: []
+            };
+            const artTeam = organizations.find(o => o.name === '아트팀');
+            if (artTeam) {
+                artLine.orgs.push(artTeam);
+                
+                // 2D 서브컬럼
+                const art2dTeam = organizations.find(o => o.name === '2D아트팀');
+                if (art2dTeam) {
+                    const subCol2D = {
+                        name: '2D아트팀',
+                        orgs: [art2dTeam]
+                    };
+                    art2dTeam.subOrgs.forEach(subName => {
+                        const sub = organizations.find(o => o.name === subName);
+                        if (sub) subCol2D.orgs.push(sub);
+                    });
+                    artLine.subColumns.push(subCol2D);
+                }
+                
+                // 3D 서브컬럼
+                const art3dTeam = organizations.find(o => o.name === '3D아트팀');
+                if (art3dTeam) {
+                    const subCol3D = {
+                        name: '3D아트팀',
+                        orgs: [art3dTeam]
+                    };
+                    art3dTeam.subOrgs.forEach(subName => {
+                        const sub = organizations.find(o => o.name === subName);
+                        if (sub) subCol3D.orgs.push(sub);
+                    });
+                    artLine.subColumns.push(subCol3D);
+                }
+            }
+            if (artLine.orgs.length > 0) lines.push(artLine);
+            
+            return lines;
+        }
+
+        // 조직도 렌더링 (컬럼 방식)
+        function renderOrganization(organizations) {
+            const container = document.getElementById('orgContainer');
+            container.innerHTML = '';
+            memberElements.clear();
+            orgElements.clear();
+            
+            // 전역 변수에 저장
+            currentOrgData.organizations = organizations;
+            
+            // 조직 구조 디버깅
+            console.log('\n=== 조직 구조 로드됨 ===');
+            console.log(`총 ${organizations.length}개 조직`);
+            const level5Orgs = organizations.filter(o => o.level === 5);
+            console.log(`레벨 5 파트: ${level5Orgs.length}개`);
+            level5Orgs.slice(0, 3).forEach(org => {
+                console.log(`  - ${org.name}: 리더 [${org.leader}], 멤버 ${org.members.length}명`);
+            });
+            
+            const lines = buildOrgTree(organizations);
+            
+            lines.forEach(line => {
+                const column = document.createElement('div');
+                column.className = 'org-column';
+                
+                // 아트팀 라인은 너비를 두 배로
+                if (line.name === '아트팀 라인') {
+                    column.classList.add('wide');
+                }
+                
+                const label = document.createElement('div');
+                label.className = 'column-label';
+                label.textContent = line.name;
+                column.appendChild(label);
+                
+                // 메인 조직들
+                line.orgs.forEach(org => {
+                    const card = createOrgCard(org);
+                    // 아트팀 카드는 너비를 두 배로
+                    if (org.name === '아트팀') {
+                        card.classList.add('wide');
+                    }
+                    column.appendChild(card);
+                    orgElements.set(org.name, card);
+                });
+                
+                // 서브컬럼이 있으면 (아트팀의 경우)
+                if (line.subColumns && line.subColumns.length > 0) {
+                    const subColumnsContainer = document.createElement('div');
+                    subColumnsContainer.style.display = 'flex';
+                    subColumnsContainer.style.gap = '15px';
+                    subColumnsContainer.style.marginTop = '20px';
+                    
+                    line.subColumns.forEach(subCol => {
+                        const subColumn = document.createElement('div');
+                        subColumn.style.flex = '1';
+                        subColumn.style.background = 'rgba(255, 255, 255, 0.03)';
+                        subColumn.style.borderRadius = '15px';
+                        subColumn.style.padding = '15px';
+                        subColumn.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+                        
+                        const subLabel = document.createElement('div');
+                        subLabel.style.fontSize = '11px';
+                        subLabel.style.fontWeight = '600';
+                        subLabel.style.color = 'rgba(255, 255, 255, 0.7)';
+                        subLabel.style.marginBottom = '15px';
+                        subLabel.style.textAlign = 'center';
+                        subLabel.textContent = subCol.name;
+                        subColumn.appendChild(subLabel);
+                        
+                        subCol.orgs.forEach(org => {
+                            const card = createOrgCard(org);
+                            card.style.marginBottom = '15px';
+                            subColumn.appendChild(card);
+                            orgElements.set(org.name, card);
+                        });
+                        
+                        subColumnsContainer.appendChild(subColumn);
+                    });
+                    
+                    column.appendChild(subColumnsContainer);
+                }
+                
+                container.appendChild(column);
+            });
+            
+            setTimeout(() => {
+                drawOrgConnections();
+                initializeDefaultStates();
+            }, 200);
+        }
+
+        // 조직 카드 생성
+        function createOrgCard(org) {
+            const card = document.createElement('div');
+            card.className = `org-card level-${org.level - 1}`;
+            card.setAttribute('data-org', org.name);
+            
+            const icon = document.createElement('div');
+            icon.className = 'org-icon';
+            icon.textContent = org.name.substring(0, 2);
+            
+            const info = document.createElement('div');
+            info.className = 'org-info';
+            info.innerHTML = `
+                <h3>${org.name}</h3>
+                <p>${org.subOrgs.length > 0 ? `직속: ${org.subOrgs.length}개 조직` : ''}</p>
+            `;
+            
+            const header = document.createElement('div');
+            header.className = 'org-header';
+            header.appendChild(icon);
+            header.appendChild(info);
+            
+            card.appendChild(header);
+            
+            if (org.leader) {
+                const leaderSection = document.createElement('div');
+                leaderSection.className = 'leader-section';
+                leaderSection.innerHTML = `<div class="leader-label">조직 리더</div>`;
+                
+                const leaderEl = document.createElement('div');
+                leaderEl.className = `member level-${org.level}`;
+                leaderEl.setAttribute('data-member', org.leader);
+                leaderEl.setAttribute('data-org', org.name);
+                leaderEl.textContent = org.leader;
+                
+                const tooltip = document.createElement('div');
+                tooltip.className = 'member-tooltip';
+                tooltip.textContent = `${org.leader} (리더)`;
+                leaderEl.appendChild(tooltip);
+                
+                leaderSection.appendChild(leaderEl);
+                card.appendChild(leaderSection);
+                memberElements.set(org.leader, leaderEl);
+            }
+            
+            if (org.members.length > 0) {
+                const memberSection = document.createElement('div');
+                memberSection.innerHTML = `<div class="leader-label">조직원 (${org.members.length}명)</div>`;
+                
+                const members = document.createElement('div');
+                members.className = 'members';
+                
+                org.members.forEach((member) => {
+                    const memberEl = document.createElement('div');
+                    memberEl.className = `member level-${org.level}`;
+                    memberEl.setAttribute('data-member', member.name);
+                    memberEl.setAttribute('data-org', org.name);
+                    memberEl.textContent = member.name;
+                    
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'member-tooltip';
+                    tooltip.textContent = `${member.name} (${member.role})`;
+                    memberEl.appendChild(tooltip);
+                    
+                    members.appendChild(memberEl);
+                    memberElements.set(member.name, memberEl);
+                });
+                
+                memberSection.appendChild(members);
+                card.appendChild(memberSection);
+            }
+            
+            return card;
+        }
+
+        // 조직 간 연결선 그리기
+        function drawOrgConnections() {
+            const svg = document.getElementById('connections');
+            svg.querySelectorAll('.connection-line:not(.active)').forEach(el => el.remove());
+            
+            currentOrgData.organizations.forEach(org => {
+                if (org.subOrgs && org.subOrgs.length > 0) {
+                    const parentCard = orgElements.get(org.name);
+                    if (!parentCard) return;
+                    
+                    const parentRect = getElementPosition(parentCard);
+                    const parentX = parentRect.x + parentRect.width / 2;
+                    const parentY = parentRect.y + parentRect.height;
+                    
+                    org.subOrgs.forEach(subOrgName => {
+                        const childCard = orgElements.get(subOrgName);
+                        if (!childCard) return;
+                        
+                        const childRect = getElementPosition(childCard);
+                        const childX = childRect.x + childRect.width / 2;
+                        const childY = childRect.y;
+                        
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', parentX);
+                        line.setAttribute('y1', parentY);
+                        line.setAttribute('x2', childX);
+                        line.setAttribute('y2', childY);
+                        line.setAttribute('class', 'connection-line');
+                        
+                        svg.appendChild(line);
+                    });
+                }
+            });
+        }
+
+        function getElementPosition(element) {
+            const rect = element.getBoundingClientRect();
+            const canvas = document.getElementById('canvas');
+            const canvasRect = canvas.getBoundingClientRect();
+            
+            return {
+                x: (rect.left - canvasRect.left) / scale,
+                y: (rect.top - canvasRect.top) / scale,
+                width: rect.width / scale,
+                height: rect.height / scale
+            };
+        }
+
+        function drawCollaborationLines() {
+            const svg = document.getElementById('connections');
+            svg.querySelectorAll('.connection-line.active').forEach(el => el.remove());
+            
+            let successCount = 0;
+            let failCount = 0;
+            
+            collaborations.forEach(([name1, name2]) => {
+                const el1 = memberElements.get(name1);
+                const el2 = memberElements.get(name2);
+                
+                if (el1 && el2) {
+                    const rect1 = getElementPosition(el1);
+                    const rect2 = getElementPosition(el2);
+                    
+                    const x1 = rect1.x + rect1.width / 2;
+                    const y1 = rect1.y + rect1.height / 2;
+                    const x2 = rect2.x + rect2.width / 2;
+                    const y2 = rect2.y + rect2.height / 2;
+                    
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const midY = (y1 + y2) / 2;
+                    const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+                    
+                    line.setAttribute('d', d);
+                    line.setAttribute('class', 'connection-line active');
+                    
+                    svg.appendChild(line);
+                    successCount++;
+                } else {
+                    console.warn(`협업 라인 실패: ${name1} (${el1 ? '찾음' : '못찾음'}) <-> ${name2} (${el2 ? '찾음' : '못찾음'})`);
+                    failCount++;
+                }
+            });
+            
+            console.log(`협업 라인: 성공 ${successCount}개, 실패 ${failCount}개`);
+        }
+
+        function initializeDefaultStates() {
+            // 초기화
+            activeMembers.clear();
+            dormantMembers.clear();
+            collaborations = [];
+            
+            const allMembers = Array.from(memberElements.keys());
+            console.log(`\n=== 초기 상태 설정 ===`);
+            console.log(`전체 멤버 수: ${allMembers.length}`);
+            console.log(`첫 10명:`, allMembers.slice(0, 10));
+            
+            // 활성/비활성 멤버 설정
+            const activeRate = 0.7; // 70%를 활성으로
+            allMembers.forEach(name => {
+                if (Math.random() < activeRate) {
+                    activeMembers.add(name);
+                } else {
+                    dormantMembers.add(name);
+                }
+            });
+            
+            console.log(`활성 멤버: ${activeMembers.size}명`);
+            
+            // 1. 전체 랜덤 협업 생성
+            const activeArray = Array.from(activeMembers);
+            const generalCollabCount = Math.floor(20 + Math.random() * 10);
+            
+            for (let i = 0; i < generalCollabCount && activeArray.length > 1; i++) {
+                const idx1 = Math.floor(Math.random() * activeArray.length);
+                let idx2 = Math.floor(Math.random() * activeArray.length);
+                let attempts = 0;
+                while (idx2 === idx1 && attempts < 10) {
+                    idx2 = Math.floor(Math.random() * activeArray.length);
+                    attempts++;
+                }
+                if (idx1 !== idx2) {
+                    collaborations.push([activeArray[idx1], activeArray[idx2]]);
+                }
+            }
+            
+            // 2. 아트 파트 멤버들 수집 (레벨 5인 모든 파트)
+            const artMembers = [];
+            currentOrgData.organizations.forEach(org => {
+                if (org.level === 5 && org.name.includes('파트')) {
+                    // 멤버 추가
+                    org.members.forEach(member => {
+                        if (activeMembers.has(member.name) && memberElements.has(member.name)) {
+                            artMembers.push(member.name);
+                        }
+                    });
+                    // 리더 추가
+                    if (org.leader && activeMembers.has(org.leader) && memberElements.has(org.leader)) {
+                        artMembers.push(org.leader);
+                    }
+                }
+            });
+            
+            console.log(`\n=== 아트팀 협업 ===`);
+            console.log(`아트팀 활성 멤버: ${artMembers.length}명`, artMembers.slice(0, 5));
+            
+            // 3. 아트 파트 간 협업 추가 (15개)
+            const artCollabCount = 15;
+            let artCollabAdded = 0;
+            
+            for (let i = 0; i < artCollabCount && artMembers.length > 1; i++) {
+                const idx1 = Math.floor(Math.random() * artMembers.length);
+                let idx2 = Math.floor(Math.random() * artMembers.length);
+                let attempts = 0;
+                while (idx2 === idx1 && attempts < 10) {
+                    idx2 = Math.floor(Math.random() * artMembers.length);
+                    attempts++;
+                }
+                if (idx1 !== idx2) {
+                    const name1 = artMembers[idx1];
+                    const name2 = artMembers[idx2];
+                    
+                    // 중복 체크
+                    const isDuplicate = collaborations.some(([n1, n2]) => 
+                        (n1 === name1 && n2 === name2) || (n1 === name2 && n2 === name1)
+                    );
+                    
+                    if (!isDuplicate) {
+                        collaborations.push([name1, name2]);
+                        artCollabAdded++;
+                        if (i < 5) { // 처음 5개만 로그
+                            console.log(`  ${artCollabAdded}. ${name1} <-> ${name2}`);
+                        }
+                    }
+                }
+            }
+            
+            console.log(`아트팀 협업 추가: ${artCollabAdded}개`);
+            console.log(`총 협업 수: ${collaborations.length}개\n`);
+            
+            updateVisualization();
+        }
+
+        function startSimulation() {
+            setInterval(() => {
+                if (!simulationRunning) return;
+                
+                const allMembers = Array.from(memberElements.keys());
+                activeMembers.clear();
+                dormantMembers.clear();
+                
+                const activeRate = 0.65 + Math.random() * 0.2;
+                allMembers.forEach(name => {
+                    if (Math.random() < activeRate) {
+                        activeMembers.add(name);
+                    } else {
+                        dormantMembers.add(name);
+                    }
+                });
+                
+                collaborations = [];
+                
+                // 1. 전체 랜덤 협업 생성
+                const activeArray = Array.from(activeMembers);
+                const generalCollabCount = Math.floor(20 + Math.random() * 10);
+                
+                for (let i = 0; i < generalCollabCount && activeArray.length > 1; i++) {
+                    const idx1 = Math.floor(Math.random() * activeArray.length);
+                    let idx2 = Math.floor(Math.random() * activeArray.length);
+                    let attempts = 0;
+                    while (idx2 === idx1 && attempts < 10) {
+                        idx2 = Math.floor(Math.random() * activeArray.length);
+                        attempts++;
+                    }
+                    if (idx1 !== idx2) {
+                        collaborations.push([activeArray[idx1], activeArray[idx2]]);
+                    }
+                }
+                
+                // 2. 아트 파트 멤버들 수집
+                const artMembers = [];
+                currentOrgData.organizations.forEach(org => {
+                    if (org.level === 5 && org.name.includes('파트')) {
+                        org.members.forEach(member => {
+                            if (activeMembers.has(member.name) && memberElements.has(member.name)) {
+                                artMembers.push(member.name);
+                            }
+                        });
+                        if (org.leader && activeMembers.has(org.leader) && memberElements.has(org.leader)) {
+                            artMembers.push(org.leader);
+                        }
+                    }
+                });
+                
+                // 3. 아트 파트 간 협업 추가
+                const artCollabCount = 15;
+                let artCollabAdded = 0;
+                
+                for (let i = 0; i < artCollabCount && artMembers.length > 1; i++) {
+                    const idx1 = Math.floor(Math.random() * artMembers.length);
+                    let idx2 = Math.floor(Math.random() * artMembers.length);
+                    let attempts = 0;
+                    while (idx2 === idx1 && attempts < 10) {
+                        idx2 = Math.floor(Math.random() * artMembers.length);
+                        attempts++;
+                    }
+                    if (idx1 !== idx2) {
+                        const name1 = artMembers[idx1];
+                        const name2 = artMembers[idx2];
+                        
+                        // 중복 체크
+                        const isDuplicate = collaborations.some(([n1, n2]) => 
+                            (n1 === name1 && n2 === name2) || (n1 === name2 && n2 === name1)
+                        );
+                        
+                        if (!isDuplicate) {
+                            collaborations.push([name1, name2]);
+                            artCollabAdded++;
+                        }
+                    }
+                }
+                
+                updateVisualization();
+            }, 2500);
+            
+            setInterval(() => {
+                if (!simulationRunning) return;
+                updateTeamActivity();
+            }, 1000);
+        }
+
+        function updateVisualization() {
+            memberElements.forEach((el, name) => {
+                el.classList.remove('active', 'dormant');
+                if (activeMembers.has(name)) {
+                    el.classList.add('active');
+                } else if (dormantMembers.has(name)) {
+                    el.classList.add('dormant');
+                }
+            });
+            
+            document.querySelectorAll('.org-card').forEach(card => {
+                card.classList.remove('active');
+                const members = card.querySelectorAll('.member');
+                let hasActive = false;
+                members.forEach(m => {
+                    if (m.classList.contains('active')) hasActive = true;
+                });
+                if (hasActive) card.classList.add('active');
+            });
+            
+            drawCollaborationLines();
+            
+            document.getElementById('activeCount').textContent = activeMembers.size;
+            document.getElementById('dormantCount').textContent = dormantMembers.size;
+            document.getElementById('collabCount').textContent = collaborations.length;
+        }
+
+        function updateTeamActivity() {
+            const teams = {
+                '기획팀': ['밸런스파트', '콘텐츠파트', '시스템파트', '게임UI파트'],
+                '프로그램팀': ['클라이언트파트', '서버파트'],
+                '아트팀': ['2D아트팀', '3D아트팀', '도트디자인1파트', '도트디자인2파트', '도트애니메이션1파트', '도트애니메이션2파트', '가이드모델링파트', '컨셉원화파트', '배경원화파트', '배경모델링파트', '배경월드빌딩파트', '3D캐릭터모델링파트', '3D애니메이션파트', '이펙트파트', 'TA파트']
+            };
+            
+            Object.keys(teams).forEach(teamName => {
+                const subOrgs = teams[teamName];
+                let totalMembers = 0;
+                let activeCount = 0;
+                
+                subOrgs.forEach(subOrg => {
+                    const org = orgData.find(o => o.name === subOrg);
+                    if (org) {
+                        totalMembers += org.members.length + (org.leader ? 1 : 0);
+                        org.members.forEach(m => {
+                            if (activeMembers.has(m.name)) activeCount++;
+                        });
+                        if (org.leader && activeMembers.has(org.leader)) activeCount++;
+                    }
+                });
+                
+                const percentage = totalMembers > 0 ? Math.round((activeCount / totalMembers) * 100) : 0;
+                const key = teamName === '기획팀' ? 'planning' : teamName === '프로그램팀' ? 'program' : 'art';
+                
+                document.getElementById(`activity-${key}`).style.width = percentage + '%';
+                document.getElementById(`value-${key}`).textContent = percentage + '%';
+            });
+        }
+
+        const viewport = document.getElementById('viewport');
+        const canvas = document.getElementById('canvas');
+
+        viewport.addEventListener('mousedown', (e) => {
+            isPanning = true;
+            startX = e.clientX - translateX;
+            startY = e.clientY - translateY;
+            viewport.classList.add('grabbing');
+        });
+
+        viewport.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            translateX = e.clientX - startX;
+            translateY = e.clientY - startY;
+            updateTransform();
+        });
+
+        viewport.addEventListener('mouseup', () => {
+            isPanning = false;
+            viewport.classList.remove('grabbing');
+        });
+
+        viewport.addEventListener('mouseleave', () => {
+            isPanning = false;
+            viewport.classList.remove('grabbing');
+        });
+
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            scale *= delta;
+            scale = Math.max(0.3, Math.min(3, scale));
+            updateTransform();
+        });
+
+        function updateTransform() {
+            canvas.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+            const svg = document.getElementById('connections');
+            const container = document.getElementById('orgContainer');
+            svg.setAttribute('width', container.scrollWidth);
+            svg.setAttribute('height', container.scrollHeight);
+            
+            setTimeout(() => {
+                drawOrgConnections();
+                if (collaborations.length > 0) {
+                    drawCollaborationLines();
+                }
+            }, 50);
+        }
+
+        function zoomIn() {
+            scale *= 1.2;
+            scale = Math.min(3, scale);
+            updateTransform();
+        }
+
+        function zoomOut() {
+            scale *= 0.8;
+            scale = Math.max(0.3, scale);
+            updateTransform();
+        }
+
+        function resetView() {
+            scale = 1;
+            translateX = 0;
+            translateY = 0;
+            updateTransform();
+        }
+
+        function toggleSimulation() {
+            simulationRunning = !simulationRunning;
+            document.getElementById('simBtn').textContent = simulationRunning ? '⏸ 일시정지' : '▶ 시작';
+        }
+
+        function resetSimulation() {
+            activeMembers.clear();
+            dormantMembers.clear();
+            collaborations = [];
+            initializeDefaultStates();
+        }
+
+        function loadCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const csvData = parseCSV(e.target.result);
+                orgData = extractOrgStructure(csvData);
+                renderOrganization(orgData);
+                generateLeaderboardData();
+                generateWeekButtons();
+                
+                // 현재 주차 버튼 활성화
+                const btns = document.querySelectorAll('.week-btn');
+                btns.forEach((btn, idx) => {
+                    if (idx + 1 === currentWeek) {
+                        btn.classList.add('active');
+                    }
+                });
+                
+                updateLeaderboard();
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        // 리더보드 관련 변수
+        let currentMonth = new Date().getMonth() + 1;
+        let currentWeek = 1;
+        let leaderboardData = {};
+        let dynamicUpdateInterval = null;
+        let currentYearForLeaderboard = new Date().getFullYear();
+        
+        // 현재 날짜 정보
+        function getCurrentDateInfo() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const date = now.getDate();
+            
+            // 해당 월의 주차 계산
+            const firstDay = new Date(year, month - 1, 1);
+            const weekOfMonth = Math.ceil((date + firstDay.getDay()) / 7);
+            
+            return { year, month, week: weekOfMonth, date };
+        }
+        
+        // 특정 월의 총 주차 수 계산
+        function getWeeksInMonth(year, month) {
+            const lastDay = new Date(year, month, 0).getDate();
+            const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
+            return Math.ceil((lastDay + firstDayOfWeek) / 7);
+        }
+        
+        // 미래 날짜인지 확인
+        function isFutureDate(year, month, week) {
+            const now = getCurrentDateInfo();
+            if (year > now.year) return true;
+            if (year < now.year) return false;
+            if (month > now.month) return true;
+            if (month < now.month) return false;
+            return week > now.week;
+        }
+        
+        // 현재 주차인지 확인
+        function isCurrentWeek(year, month, week) {
+            const now = getCurrentDateInfo();
+            return year === now.year && month === now.month && week === now.week;
+        }
+
+        // 리더보드 데이터 생성
+        function generateLeaderboardData() {
+            const allMembers = [];
+            
+            // 모든 멤버 수집
+            currentOrgData.organizations.forEach(org => {
+                if (org.leader) {
+                    allMembers.push({
+                        name: org.leader,
+                        org: org.name
+                    });
+                }
+                org.members.forEach(member => {
+                    allMembers.push({
+                        name: member.name,
+                        org: org.name
+                    });
+                });
+            });
+
+            leaderboardData = {};
+            const categories = ['collaboration', 'quality', 'overtime', 'deadline', 'suggestion', 'overall'];
+            const year = currentYearForLeaderboard;
+            
+            // 각 멤버별 시드 값 (일관성을 위해)
+            const memberSeeds = {};
+            allMembers.forEach((member, idx) => {
+                memberSeeds[member.name] = idx * 137; // 고유한 시드
+            });
+            
+            // 1월부터 12월까지
+            for (let month = 1; month <= 12; month++) {
+                const weeksInMonth = getWeeksInMonth(year, month);
+                leaderboardData[month] = {};
+                
+                for (let week = 1; week <= weeksInMonth; week++) {
+                    const weekKey = `${month}-${week}`;
+                    leaderboardData[month][week] = {};
+                    
+                    categories.forEach(category => {
+                        const memberScores = allMembers.map((member, idx) => {
+                            const seed = memberSeeds[member.name];
+                            const monthFactor = month * 0.05;
+                            const weekFactor = week * 0.1;
+                            
+                            // 시드 기반 랜덤 (일관성 유지)
+                            const seededRandom = (seed + month * 100 + week * 10 + idx) % 100 / 100;
+                            
+                            let score;
+                            switch(category) {
+                                case 'collaboration':
+                                    score = Math.floor(70 + seededRandom * 30 + monthFactor * 5);
+                                    break;
+                                case 'quality':
+                                    score = Math.floor(65 + seededRandom * 35 + weekFactor * 3);
+                                    break;
+                                case 'overtime':
+                                    score = Math.floor(30 + seededRandom * 50 + monthFactor * 3);
+                                    break;
+                                case 'deadline':
+                                    score = Math.floor(70 + seededRandom * 30);
+                                    break;
+                                case 'suggestion':
+                                    score = Math.floor(40 + seededRandom * 40 + weekFactor * 5);
+                                    break;
+                                case 'overall':
+                                    score = Math.floor(65 + seededRandom * 35);
+                                    break;
+                            }
+                            
+                            return {
+                                name: member.name,
+                                org: member.org,
+                                score: score,
+                                change: 'same',
+                                baseScore: score // 동적 업데이트를 위한 기준 점수
+                            };
+                        });
+                        
+                        // 점수로 정렬
+                        memberScores.sort((a, b) => b.score - a.score);
+                        
+                        leaderboardData[month][week][category] = memberScores;
+                    });
+                }
+            }
+            
+            console.log('리더보드 데이터 생성 완료:', Object.keys(leaderboardData).length, '개월');
+        }
+
+        // 주차 버튼 생성
+        function generateWeekButtons() {
+            const year = currentYearForLeaderboard;
+            const weeksInMonth = getWeeksInMonth(year, currentMonth);
+            const weekSelector = document.getElementById('weekSelector');
+            weekSelector.innerHTML = '';
+            
+            for (let week = 1; week <= weeksInMonth; week++) {
+                const btn = document.createElement('button');
+                btn.className = 'week-btn';
+                btn.textContent = `${week}주차`;
+                btn.onclick = () => selectWeek(week);
+                
+                // 현재 주차 표시
+                if (isCurrentWeek(year, currentMonth, week)) {
+                    btn.classList.add('current-week');
+                }
+                
+                weekSelector.appendChild(btn);
+            }
+            
+            // 기본 선택
+            if (weekSelector.children.length > 0) {
+                weekSelector.children[0].classList.add('active');
+                currentWeek = 1;
+            }
+        }
+        
+        // 월 변경
+        function changeMonth() {
+            const monthSelector = document.getElementById('monthSelector');
+            currentMonth = parseInt(monthSelector.value);
+            
+            // 동적 업데이트 중지
+            if (dynamicUpdateInterval) {
+                clearInterval(dynamicUpdateInterval);
+                dynamicUpdateInterval = null;
+            }
+            
+            generateWeekButtons();
+            
+            // 현재 주차로 자동 선택
+            const now = getCurrentDateInfo();
+            if (currentMonth === now.month) {
+                currentWeek = now.week;
+                const btns = document.querySelectorAll('.week-btn');
+                btns.forEach((btn, idx) => {
+                    btn.classList.remove('active');
+                    if (idx + 1 === currentWeek) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
+            
+            updateLeaderboard();
+        }
+        
+        // 리더보드 업데이트
+        function updateLeaderboard() {
+            const category = document.getElementById('leaderboardCategory').value;
+            const content = document.getElementById('leaderboardContent');
+            const year = currentYearForLeaderboard;
+            
+            // 동적 업데이트 중지
+            if (dynamicUpdateInterval) {
+                clearInterval(dynamicUpdateInterval);
+                dynamicUpdateInterval = null;
+            }
+            
+            // 서브타이틀 업데이트
+            document.getElementById('leaderboardSubtitle').textContent = `${currentMonth}월 ${currentWeek}주차`;
+            
+            // 미래 날짜 체크
+            if (isFutureDate(year, currentMonth, currentWeek)) {
+                content.innerHTML = `
+                    <div class="empty-message">
+                        <div class="empty-message-icon">📅</div>
+                        <div>아직 순위가 결정되지 않았습니다</div>
+                        <div style="margin-top: 10px; font-size: 12px; opacity: 0.7;">
+                            ${currentMonth}월 ${currentWeek}주차는 진행 중이지 않습니다
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 데이터 존재 확인
+            if (!leaderboardData[currentMonth] || !leaderboardData[currentMonth][currentWeek] || 
+                !leaderboardData[currentMonth][currentWeek][category]) {
+                content.innerHTML = '<div class="empty-message"><div class="empty-message-icon">📊</div><div>데이터가 없습니다</div></div>';
+                return;
+            }
+            
+            const rankings = leaderboardData[currentMonth][currentWeek][category];
+            
+            // 현재 주차면 동적 업데이트 시작
+            if (isCurrentWeek(year, currentMonth, currentWeek)) {
+                startDynamicUpdate(category);
+            } else {
+                renderRankings(rankings);
+            }
+        }
+        
+        // 순위 렌더링
+        function renderRankings(rankings) {
+            const content = document.getElementById('leaderboardContent');
+            content.innerHTML = '';
+            
+            rankings.forEach((member, index) => {
+                const rank = index + 1;
+                const rankClass = rank <= 3 ? `rank-${rank}` : '';
+                
+                let changeHTML = '';
+                if (member.change === 'up') {
+                    changeHTML = '<span class="rank-change up">▲</span>';
+                } else if (member.change === 'down') {
+                    changeHTML = '<span class="rank-change down">▼</span>';
+                } else {
+                    changeHTML = '<span class="rank-change same">━</span>';
+                }
+                
+                const item = document.createElement('div');
+                item.className = `rank-item ${rankClass}`;
+                item.innerHTML = `
+                    <div class="rank-number">${rank}</div>
+                    <div class="rank-info">
+                        <div class="rank-name">${member.name} ${changeHTML}</div>
+                        <div class="rank-org">${member.org}</div>
+                    </div>
+                    <div class="rank-score">${member.score}</div>
+                `;
+                
+                content.appendChild(item);
+            });
+        }
+        
+        // 동적 업데이트 시작 (현재 주차용)
+        function startDynamicUpdate(category) {
+            const rankings = JSON.parse(JSON.stringify(
+                leaderboardData[currentMonth][currentWeek][category]
+            ));
+            
+            // 이전 순위 저장
+            const previousRanks = {};
+            rankings.forEach((member, idx) => {
+                previousRanks[member.name] = idx;
+            });
+            
+            renderRankings(rankings);
+            
+            // 5초마다 업데이트
+            dynamicUpdateInterval = setInterval(() => {
+                rankings.forEach((member, idx) => {
+                    const currentRank = idx + 1;
+                    
+                    // 상위권(1-5등)은 변동이 적게, 하위권은 변동이 많게
+                    const volatility = currentRank <= 5 ? 0.3 : 
+                                     currentRank <= 15 ? 0.5 : 0.7;
+                    
+                    if (Math.random() < volatility) {
+                        // ±3점 범위 내에서 점수 변동
+                        const change = Math.floor(Math.random() * 7) - 3;
+                        member.score = Math.max(0, Math.min(100, member.score + change));
+                    }
+                });
+                
+                // 점수로 재정렬
+                rankings.sort((a, b) => b.score - a.score);
+                
+                // 순위 변동 계산 (최대 ±3등)
+                rankings.forEach((member, idx) => {
+                    const oldRank = previousRanks[member.name] || idx;
+                    const newRank = idx;
+                    const diff = oldRank - newRank;
+                    
+                    // 최대 3등까지만 변동 허용
+                    if (Math.abs(diff) > 3) {
+                        // 강제로 3등 범위 내로 조정
+                        if (diff > 0) { // 상승
+                            member.score -= 2;
+                        } else { // 하락
+                            member.score += 2;
+                        }
+                    }
+                    
+                    if (diff > 0) member.change = 'up';
+                    else if (diff < 0) member.change = 'down';
+                    else member.change = 'same';
+                    
+                    previousRanks[member.name] = idx;
+                });
+                
+                // 재정렬 후 다시 렌더링
+                rankings.sort((a, b) => b.score - a.score);
+                renderRankings(rankings);
+            }, 5000);
+        }
+
+        // 주차 선택
+        function selectWeek(week) {
+            currentWeek = week;
+            
+            // 모든 주차 버튼의 active 클래스 제거
+            document.querySelectorAll('.week-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // 선택된 주차 버튼에 active 클래스 추가
+            const btns = document.querySelectorAll('.week-btn');
+            if (btns[week - 1]) {
+                btns[week - 1].classList.add('active');
+            }
+            
+            updateLeaderboard();
+        }
+
+        window.addEventListener('load', () => {
+            // 현재 날짜로 초기화
+            const now = getCurrentDateInfo();
+            currentMonth = now.month;
+            currentWeek = now.week;
+            
+            // 월 선택기 초기화
+            document.getElementById('monthSelector').value = currentMonth;
+            
+            fetch('슈퍼캣 조직도.csv')
+                .then(response => response.text())
+                .then(csvText => {
+                    const csvData = parseCSV(csvText);
+                    orgData = extractOrgStructure(csvData);
+                    renderOrganization(orgData);
+                    generateLeaderboardData();
+                    generateWeekButtons();
+                    
+                    // 현재 주차 버튼 활성화
+                    const btns = document.querySelectorAll('.week-btn');
+                    btns.forEach((btn, idx) => {
+                        if (idx + 1 === currentWeek) {
+                            btn.classList.add('active');
+                        }
+                    });
+                    
+                    updateLeaderboard();
+                    startSimulation();
+                })
+                .catch(error => {
+                    console.log('CSV 파일을 찾을 수 없습니다. 기본 데이터를 사용합니다.');
+                    const defaultCSV = `조직 레벨,조직명,조직리더,직속 조직,직속조직2,직속조직3,직속조직4,직속조직5,직속조직6,직속조직7,조직원1,조직원2,조직원3,조직원4,조직원5,조직원6,조직원7,조직원8,조직원9,조직원10,조직원11
+1,PD조직,박성준,퀄리티 디렉터 조직,게임 디렉터 조직,,,,,,,,,,,,,,,,
+2,게임 디렉터 조직,장수민,기획팀,프로그램팀,아트팀,,,,,,,,,,,,,,,
+3,기획팀,김도연,밸런스파트,콘텐츠파트,시스템파트,게임UI파트,,,,,,,,,,,,,,
+3,프로그램팀,유호영,클라이언트파트,서버파트,,,,,,,,,,,,,,,,
+3,아트팀,장가람,2D아트팀,3D아트팀,,,,,,,,,,,,,,,,
+3,퀄리티 디렉터 조직,이석호,PM파트,QA파트,빌드파트,,,,,,,,,,,,,,,
+4,PM파트,김민석,,,,,,,,"손효식
+(PM)","조아영
+(PM)",,,,,,,,,
+4,QA파트,조상호,,,,,,,,"임재엽
+(QA)","강진실
+(QA)",,,,,,,,,
+4,빌드파트,유호영,,,,,,,,"오성광
+(PM)","김주형
+(QA)","오성혁
+(QA)",,,,,,,,
+4,밸런스파트,서성철,,,,,,,,"노형원
+(기획)","윤형기
+(기획)","박성원
+(기획)","최성은
+(기획)",,,,,,,
+4,콘텐츠파트,이현민,,,,,,,,"이경민
+(기획)","정윤주
+(기획)","박준상
+(기획)","이재청
+(기획)","신지훈
+(기획)","김보영
+(기획)","최준형
+(기획)",,,,
+4,시스템파트,조유빈,,,,,,,,"박연희
+(기획 / 선임)","이호진
+(기획)","김선홍
+(기획)","이은서
+(기획)",,,,,,,
+4,게임UI파트,우수진,,,,,,,,"전수민
+(UI/UX)","강은희
+(UI/UX)","김민아
+(UI/UX)",,,,,,,,
+4,클라이언트파트,황현식,,,,,,,,"이근수 
+(프로그램 / 선임)","이재환
+(프로그램)","유창민
+(프로그램)","이정태
+(프로그램)","정주훈
+(프로그램)","최규환
+(프로그램)","추연채
+(프로그램)","이일규
+(프로그램)","박형우
+(프로그램)","모성민 
+(프로그램)","김재기
+(프로그램)"
+4,서버파트,조희선,,,,,,,,"최익필
+(프로그램)","윤영준 
+(프로그램)","이재형
+(프로그램)","송진민 
+(프로그램)","송준호
+(프로그램)",,,,,,
+4,2D아트팀,장가람,도트디자인1파트,도트디자인2파트,도트애니메이션1파트,도트애니메이션2파트,가이드모델링파트,컨셉원화파트,,,,,,,,,,,,
+4,3D아트팀,박인환,배경원화파트,배경모델링파트,배경월드빌딩파트,3D캐릭터모델링파트,3D애니메이션파트,이펙트파트,TA파트,,,,,,,,,,,
+5,도트디자인1파트,김주연,,,,,,,,"전현준
+(아트 / 선임)","송기현
+(아트)","이경진B
+(아트)",,,,,,,,
+5,도트디자인2파트,차준영,,,,,,,,"장지연
+(아트 / 선임)","김효정
+(아트)","정희연
+(아트)","김영은
+(아트)",,,,,,,
+5,도트애니메이션1파트,조신우,,,,,,,,"김은희
+(아트 / 선임)","박태양
+(아트)","진영훈
+(아트)","채종수
+(아트)","김수진B
+(아트)","정다슬
+(아트)",,,,,
+5,도트애니메이션2파트,김정엽,,,,,,,,"이준호
+(아트)","최희준
+(아트)","김윤재
+(아트)","전혜지
+(아트)","유진웅
+(아트)",,,,,,
+5,가이드모델링파트,박상민,,,,,,,,"김영하
+(아트 / 선임)","용환민
+(아트)","김윤선
+(아트)",,,,,,,,
+5,컨셉원화파트,유경민,,,,,,,,"지혜양
+(아트 / 선임)","홍성명
+(아트)","김수진
+(아트)","남다위
+(아트)","김다솜
+(아트)",,,,,,
+5,배경원화파트,강도홍,,,,,,,,"김상조
+(아트 / 선임)","정혜영
+(아트)","조동주
+(아트)","정경원
+(아트)","이성우
+(아트)",,,,,,
+5,배경모델링파트,조현기,,,,,,,,"서미정
+(아트)","기태양
+(아트)","이주연
+(아트)","홍유진
+(아트)",,,,,,,
+5,배경월드빌딩파트,강동호,,,,,,,,"김형찬
+(아트)","김희애
+(아트)",,,,,,,,,
+5,3D캐릭터모델링파트,박정균,,,,,,,,"김해현
+(아트)","손영배
+(아트)",,,,,,,,,
+5,3D애니메이션파트,윤민우,,,,,,,,"윤혜지
+(아트)","오지현
+(아트)",,,,,,,,,
+5,이펙트파트,김수완,,,,,,,,"안창용
+(아트)","이욱선
+(아트)","김유림
+(아트)",,,,,,,,
+5,TA파트,최상훈,,,,,,,,"황태준
+(아트)",,,,,,,,,,`;
+                    
+                    const csvData = parseCSV(defaultCSV);
+                    orgData = extractOrgStructure(csvData);
+                    renderOrganization(orgData);
+                    generateLeaderboardData();
+                    generateWeekButtons();
+                    
+                    // 현재 주차 버튼 활성화
+                    const btns = document.querySelectorAll('.week-btn');
+                    btns.forEach((btn, idx) => {
+                        if (idx + 1 === currentWeek) {
+                            btn.classList.add('active');
+                        }
+                    });
+                    
+                    updateLeaderboard();
+                    startSimulation();
+                });
+        });
+    </script>
+</body>
+</html>
